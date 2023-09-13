@@ -30,6 +30,12 @@
   "app": {
     "plant-net": {
       "api-key": "2b10WbO9fd5QAEGcaUIVzfJBO"
+    }, 
+    "backend": {
+      "url": "http://192.168.1.102:8080", 
+      "endpoints": {
+        "classifySpecies": "/api/species_classifier/classify"
+      }
     }
   }
 }

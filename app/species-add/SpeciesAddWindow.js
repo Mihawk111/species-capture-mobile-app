@@ -1,5 +1,5 @@
-import { Button, Image, StyleSheet, Text, TextInput, View } from "react-native";
-import { launchCameraAsync, launchImageLibraryAsync } from 'expo-image-picker'
+import { Button, Image, StyleSheet, Text, TextInput, View, ToastAndroid } from "react-native";
+import { launchCameraAsync, launchImageLibraryAsync, MediaTypeOptions } from 'expo-image-picker'
 import { useState } from "react";
 import { base64ToBlob } from '../shared/util'
 import axios from "axios";
@@ -8,19 +8,55 @@ import appConfig from '../../app.json'
 export default function SpeciesAddWindow(props) {
     defaultImageUrl = require('../../assets/default-image.png')
     const [pickedImageUri, setPickedImageUri] = useState('')
+    const classifyUrl = appConfig.app.backend.url + appConfig.app.backend.endpoints.classifySpecies
 
     function predictSpeciesAndFill(imageBinaryData) {
-        const apiKey = appConfig.app["plant-net"]["api-key"]
-        const formData = new FormData()
-        formData.append('images', imageBinaryData)
-        console.log(typeof imageBinaryData);
-        axios.post(`https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&lang=en&api-key=${apiKey}`, formData, {
+        // const imgFile = new File([base64ToBlob(imageBinaryData)], 'image_to_predict.jpg', {type: 'image/jpg'})
+        // // const imgFile = new File([base64ToBlob(imageBinaryData)], 'image_to_predict')
+        // const apiKey = appConfig.app["plant-net"]["api-key"]
+        // const formData = new FormData()
+        // formData.append('images', imgFile)
+
+        // fetch(`https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&lang=en&api-key=${apiKey}`, {
+        //     method: 'POST', 
+        //     body: formData, 
+        //     headers: {
+        //         // 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryx2z1vPsEwqVYcX2y'
+        //     }
+        // }).then((data) => {
+        //     console.log(JSON.stringify(data))
+        // }, (err) => {
+        //     console.error(err)
+        //     console.error(JSON.stringify(err))
+        //     console.error('------------------------------')
+        // })
+        
+        // axios.post(`https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&lang=en&api-key=${apiKey}`, formData, {
+        //     headers: {
+        //         // 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryx2z1vPsEwqVYcX2y'
+        //     }
+        // }).then((data) => {
+        //     console.log(data)
+        // }, (err) => {
+        //     console.error(err)
+        //     console.error(JSON.stringify(err))
+        //     console.error('------------------------------')
+        // })
+
+        axios.post(classifyUrl, imageBinaryData, {
             headers: {
-                'Content-Type': 'multipart/form-data'
+                'Content-Type': 'text/plain'
             }
         }).then((data) => {
-            console.log(data)
-        }, (err) => {
+            // console.log(data)
+            const res = data.data
+            const scientificName = res.scientificName
+
+            console.log(`Scientific Name = ${scientificName}`)
+
+            
+        })
+        .catch((err) => {
             console.error(err)
             console.error(JSON.stringify(err))
             console.error('------------------------------')
@@ -28,7 +64,7 @@ export default function SpeciesAddWindow(props) {
     }
 
     async function takeImageHandler() {
-        const image = await launchCameraAsync({allowsEditing: true, base64: true})
+        const image = await launchCameraAsync({allowsEditing: true, base64: true, mediaTypes: MediaTypeOptions.Images})
         if(!image.canceled) {
             setPickedImageUri(image.assets[0].uri)
             const imageBinaryData = image.assets[0].base64
@@ -37,7 +73,7 @@ export default function SpeciesAddWindow(props) {
     }
 
     async function selectImageHandler() {
-        const image = await launchImageLibraryAsync({allowsEditing: true, base64: true})
+        const image = await launchImageLibraryAsync({allowsEditing: true, base64: true, mediaTypes: MediaTypeOptions.Images})
         if(!image.canceled) {
             setPickedImageUri(image.assets[0].uri)
             const imageBinaryData = image.assets[0].base64

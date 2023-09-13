@@ -14,6 +14,6 @@ exports.base64ToBlob = (base64) => {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
-    // return new Blob([byteArray], { type: 'image/jpeg' }); // Adjust the type as needed (e.g., 'image/png')
-    return new Blob([byteArray]); // Adjust the type as needed (e.g., 'image/png')
+    return new Blob([byteArray], { type: 'image/jpg' }); // Adjust the type as needed (e.g., 'image/png')
+    // return new Blob([byteArray]); // Adjust the type as needed (e.g., 'image/png')
 }
