@@ -1,48 +1,61 @@
-import { Button, Image, StyleSheet, Text, TextInput, View, ToastAndroid } from "react-native";
+import { Button, Image, StyleSheet, Text, TextInput, View, ToastAndroid, ScrollView, ActivityIndicator } from "react-native";
 import { launchCameraAsync, launchImageLibraryAsync, MediaTypeOptions } from 'expo-image-picker'
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { base64ToBlob } from '../shared/util'
+import FloatingLabelTextInput from '../shared/FloatingLabelTextInput'
+// import { FloatingLabelInput } from 'react-native-floating-label-input';
 import axios from "axios";
 import appConfig from '../../app.json'
+import { getSpeciesDetails } from '../service/species_service'
+import LocationPicker from "../shared/LocationPicker";
+import DynamicMap from "../shared/DynamicMap";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 export default function SpeciesAddWindow(props) {
     defaultImageUrl = require('../../assets/default-image.png')
     const [pickedImageUri, setPickedImageUri] = useState('')
+    const [classifyingSpecies, setClassifyingSpecies] = useState(false)
+    const [scientificNameField, setScientificNameField] = useState('')
+    const [nameField, setNameField] = useState('')
+    const [descriptionField, setDescriptionField] = useState('')
+    const [userDescriptionField, setUserDescriptionField] = useState('')
+    const [pickedLocation, setPickedLocation] = useState()
     const classifyUrl = appConfig.app.backend.url + appConfig.app.backend.endpoints.classifySpecies
 
+    console.log(`Got props [Add] = ${JSON.stringify(props)}`)
+
+    const route = useRoute()
+    const mapPickedLocation = route.params && {
+        latitude: route.params.latitude, 
+        longitude: route.params.longitude
+    }
+    route.params = undefined  // To avoid the params being carried on in the next rendering when updateState() is called for current location button ...
+
+    // To avoid infinite rendering due to useState's set state ...
+    if(mapPickedLocation && (!pickedLocation || pickedLocation.latitude != mapPickedLocation.latitude || pickedLocation.longitude != mapPickedLocation.longitude)) {
+        setPickedLocation(mapPickedLocation)
+    }
+
+    // // Not working why ???
+    // useEffect(() => {
+    //     if(mapPickedLocation) {
+    //         setPickedLocation(mapPickedLocation)
+    //     }
+    // }, [mapPickedLocation])
+
+
+    function setDefaults() {
+        setScientificNameField('')
+        setNameField('')
+        setDescriptionField('')
+        setUserDescriptionField('')
+        setPickedLocation()
+    }
+
     function predictSpeciesAndFill(imageBinaryData) {
-        // const imgFile = new File([base64ToBlob(imageBinaryData)], 'image_to_predict.jpg', {type: 'image/jpg'})
-        // // const imgFile = new File([base64ToBlob(imageBinaryData)], 'image_to_predict')
-        // const apiKey = appConfig.app["plant-net"]["api-key"]
-        // const formData = new FormData()
-        // formData.append('images', imgFile)
-
-        // fetch(`https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&lang=en&api-key=${apiKey}`, {
-        //     method: 'POST', 
-        //     body: formData, 
-        //     headers: {
-        //         // 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryx2z1vPsEwqVYcX2y'
-        //     }
-        // }).then((data) => {
-        //     console.log(JSON.stringify(data))
-        // }, (err) => {
-        //     console.error(err)
-        //     console.error(JSON.stringify(err))
-        //     console.error('------------------------------')
-        // })
-        
-        // axios.post(`https://my-api.plantnet.org/v2/identify/all?include-related-images=false&no-reject=false&lang=en&api-key=${apiKey}`, formData, {
-        //     headers: {
-        //         // 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryx2z1vPsEwqVYcX2y'
-        //     }
-        // }).then((data) => {
-        //     console.log(data)
-        // }, (err) => {
-        //     console.error(err)
-        //     console.error(JSON.stringify(err))
-        //     console.error('------------------------------')
-        // })
-
+        var scientificName = null
+        setDefaults()
+        setClassifyingSpecies(true)
         axios.post(classifyUrl, imageBinaryData, {
             headers: {
                 'Content-Type': 'text/plain'
@@ -50,16 +63,37 @@ export default function SpeciesAddWindow(props) {
         }).then((data) => {
             // console.log(data)
             const res = data.data
-            const scientificName = res.scientificName
-
+            scientificName = res.scientificName
             console.log(`Scientific Name = ${scientificName}`)
 
+            if(scientificName === null || scientificName === undefined) {
+                ToastAndroid.showWithGravity('Tree Species could not be determined', ToastAndroid.SHORT, ToastAndroid.TOP)
+                throw new Error('Species could not be found')
+            }
             
+            scientificName = scientificName.toLowerCase().trim()
+            console.log(`Processed Scientific Name = ${scientificName}`)
+            return getSpeciesDetails(scientificName)
+        }).then((data) => {
+            const res = data.data
+            console.log(`Species Found = ${JSON.stringify(res)}`)
+            setScientificNameField(scientificName)
+
+            if(res) {
+                setNameField(res.name)
+                setDescriptionField(res.description)
+            } else {
+                ToastAndroid.showWithGravity('Seems to be a new species !!!', ToastAndroid.SHORT, ToastAndroid.TOP)
+            }
+
+            setClassifyingSpecies(false)
         })
         .catch((err) => {
             console.error(err)
             console.error(JSON.stringify(err))
             console.error('------------------------------')
+            // ToastAndroid.showWithGravity('Could not connect to server !!!', ToastAndroid.SHORT, ToastAndroid.TOP)
+            setClassifyingSpecies(false)
         })
     }
 
@@ -81,18 +115,40 @@ export default function SpeciesAddWindow(props) {
         }
     }
 
+    var imagePreview
     if(pickedImageUri) imagePreview = <Image style={styles.img} source={{uri: pickedImageUri}} />
     else imagePreview = <Image style={styles.img} source={defaultImageUrl} />
+
+    var inputSection
+    if(classifyingSpecies) inputSection =   <View style={{alignItems: 'center'}}>
+                                                <ActivityIndicator size="200" color="blue" />
+                                                <Text style={{marginTop: 20, fontSize: 20}}> Loading ... </Text>
+                                            </View>
+    else if(!pickedImageUri) inputSection = <View style={{alignItems: 'center'}}>
+                                                <Text style={{marginTop: 20, fontSize: 20}}>Select image first ...</Text>
+                                            </View>
+    else inputSection = <View>
+                            <FloatingLabelTextInput label="Name" value={nameField} onChangeText={setNameField}/>
+                            <FloatingLabelTextInput label="Scientific Name" value={scientificNameField} onChangeText={setScientificNameField}/>
+                            {(descriptionField)? (<FloatingLabelTextInput label="Description" value={descriptionField} onChangeText={setDescriptionField} editable={false} />): (<></>)}
+                            <FloatingLabelTextInput label="User Description" value={userDescriptionField} onChangeText={setUserDescriptionField}/>
+                            <LocationPicker pickedLocation={pickedLocation} setPickedLocation={setPickedLocation} />
+                            <Button title="Add Entry" onPress={null} color={'#00bb00'} />
+                        </View>
 
     return (
         <View style={styles.main}>
             {imagePreview}
             <View style={styles.btn}>
                 <Button title="Take Image" onPress={takeImageHandler} />
+                <Text style={{marginLeft: 30}}></Text>
                 <Button title="Choose Gallery" onPress={selectImageHandler} />
             </View>
             <View style={styles.inputContainer}>
-                
+                <ScrollView>
+                    {inputSection}
+                    {/* <LocationPicker pickedLocation={pickedLocation} setPickedLocation={setPickedLocation} /> */}
+                </ScrollView>
             </View>
         </View>
     )

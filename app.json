@@ -34,8 +34,12 @@
     "backend": {
       "url": "http://192.168.1.102:8080", 
       "endpoints": {
+        "findSpeciesByScientificName": "/api/species/get", 
         "classifySpecies": "/api/species_classifier/classify"
       }
+    }, 
+    "google-maps": {
+      "api-key": "lol"
     }
   }
 }
